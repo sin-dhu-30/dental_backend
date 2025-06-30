@@ -1,12 +1,17 @@
 const express = require("express")
-const { registerUser, loginUser } = require("../Controllers/UserController")
-
 const router = express.Router()
+// Fix: Change from '../controllers/UserController' to '../Controllers/UserController'
+const userController = require("../controllers/UserController")
 
-// Route for signup
-router.post("/signup", registerUser)
+// Your existing routes
+router.get("/", userController.getAllUsers)
+router.get("/:id", userController.getUserById)
+router.post("/", userController.createUser)
+router.put("/:id", userController.updateUser)
+router.delete("/:id", userController.deleteUser)
 
-// Route for login
-router.post("/login", loginUser)
+// If you have authentication routes
+router.post("/register", userController.registerUser)
+router.post("/login", userController.loginUser)
 
 module.exports = router

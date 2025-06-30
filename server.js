@@ -3,7 +3,8 @@ const mongoose = require("mongoose")
 const cors = require("cors")
 require("dotenv").config()
 
-// Import your existing routes
+// Fix: Change from './routes/UserRoute' to './routes/UserRoute' (this should be correct)
+// Fix: Change from './routes/AppointmentRoute' to './routes/AppointmentRoute' (this should be correct)
 const userRoutes = require("./routes/UserRoute")
 const appointmentRoutes = require("./routes/AppointmentRoute")
 

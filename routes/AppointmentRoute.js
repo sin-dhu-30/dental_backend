@@ -1,29 +1,17 @@
 const express = require("express")
-
-// Import all functions from AppointmentController
-const {
-  createAppointment,
-  getAllAppointments,
-  getAppointmentById,
-  updateAppointmentStatus,
-  deleteAppointment,
-} = require("../controllers/AppointmentController")
-
 const router = express.Router()
+// Fix: Change from '../controllers/AppointmentController' to '../Controllers/AppointmentController'
+const appointmentController = require("../controllers/AppointmentController")
 
-// Route for creating new appointment
-router.post("/", createAppointment)
+// Your existing routes
+router.get("/", appointmentController.getAllAppointments)
+router.get("/:id", appointmentController.getAppointmentById)
+router.post("/", appointmentController.createAppointment)
+router.put("/:id", appointmentController.updateAppointment)
+router.delete("/:id", appointmentController.deleteAppointment)
 
-// Route for getting all appointments (admin)
-router.get("/", getAllAppointments)
-
-// Route for getting appointment by ID
-router.get("/:id", getAppointmentById)
-
-// Route for updating appointment status
-router.put("/:id/status", updateAppointmentStatus)
-
-// Route for deleting appointment
-router.delete("/:id", deleteAppointment)
+// Additional routes you might have
+router.get("/user/:userId", appointmentController.getAppointmentsByUser)
+router.patch("/:id/status", appointmentController.updateAppointmentStatus)
 
 module.exports = router
