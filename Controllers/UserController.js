@@ -1,103 +1,227 @@
-const User = require("../models/UserModel.js")
-const bcrypt = require("bcryptjs") // for hashing password
-const jwt = require("jsonwebtoken") // for login token
+const User = require("../models/UserModel")
+const bcrypt = require("bcryptjs")
+const jwt = require("jsonwebtoken")
 
-// Signup Controller
-const registerUser = async (req, res) => {
-  const { fullName, email, password, confirmPassword } = req.body
-
-  // Validation
-  if (!fullName || !email || !password || !confirmPassword) {
-    return res.status(400).json({ message: "All fields are required." })
-  }
-
-  if (password !== confirmPassword) {
-    return res.status(400).json({ message: "Passwords do not match." })
-  }
-
-  if (password.length < 6) {
-    return res.status(400).json({ message: "Password must be at least 6 characters long." })
-  }
-
+// Get all users
+const getAllUsers = async (req, res) => {
   try {
-    const existingUser = await User.findOne({ email })
-    if (existingUser) {
-      return res.status(400).json({ message: "User already exists." })
+    const users = await User.find().select("-password").sort({ createdAt: -1 })
+    res.json({
+      success: true,
+      count: users.length,
+      data: users,
+    })
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    })
+  }
+}
+
+// Get user by ID
+const getUserById = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select("-password")
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: "User not found",
+      })
+    }
+    res.json({
+      success: true,
+      data: user,
+    })
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    })
+  }
+}
+
+// Create user
+const createUser = async (req, res) => {
+  try {
+    const { password, ...userData } = req.body
+
+    // Hash password if provided
+    let hashedPassword
+    if (password) {
+      hashedPassword = await bcrypt.hash(password, 12)
     }
 
+    const user = await User.create({
+      ...userData,
+      password: hashedPassword || password,
+    })
+
+    // Remove password from response
+    const userResponse = user.toObject()
+    delete userResponse.password
+
+    res.status(201).json({
+      success: true,
+      data: userResponse,
+    })
+  } catch (error) {
+    if (error.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        error: "Email already exists",
+      })
+    }
+    res.status(400).json({
+      success: false,
+      error: error.message,
+    })
+  }
+}
+
+// Update user
+const updateUser = async (req, res) => {
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      { ...req.body, updatedAt: Date.now() },
+      { new: true, runValidators: true },
+    ).select("-password")
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: "User not found",
+      })
+    }
+
+    res.json({
+      success: true,
+      data: user,
+    })
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      error: error.message,
+    })
+  }
+}
+
+// Delete user
+const deleteUser = async (req, res) => {
+  try {
+    const user = await User.findByIdAndDelete(req.params.id)
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: "User not found",
+      })
+    }
+    res.json({
+      success: true,
+      message: "User deleted successfully",
+    })
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    })
+  }
+}
+
+// Register user
+const registerUser = async (req, res) => {
+  try {
+    const { fullName, email, password } = req.body
+
+    // Check if user exists
+    const existingUser = await User.findOne({ email })
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        error: "User already exists",
+      })
+    }
+
+    // Hash password
     const hashedPassword = await bcrypt.hash(password, 12)
 
-    const newUser = new User({
+    const user = await User.create({
       fullName,
       email,
       password: hashedPassword,
     })
 
-    await newUser.save()
-
-    // Create token
-    const token = jwt.sign({ id: newUser._id, email: newUser.email }, process.env.JWT_SECRET || "your_secret_key", {
-      expiresIn: "7d",
-    })
+    // Generate JWT token
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET || "fallback-secret", { expiresIn: "7d" })
 
     res.status(201).json({
-      message: "User registered successfully.",
+      success: true,
       token,
       user: {
-        id: newUser._id,
-        fullName: newUser.fullName,
-        email: newUser.email,
+        id: user._id,
+        fullName: user.fullName,
+        email: user.email,
       },
     })
   } catch (error) {
-    console.error("Registration error:", error)
-    res.status(500).json({ message: "Server Error", error: error.message })
+    res.status(400).json({
+      success: false,
+      error: error.message,
+    })
   }
 }
 
-// Login Controller
+// Login user
 const loginUser = async (req, res) => {
-  const { email, password } = req.body
-
-  // Validation
-  if (!email || !password) {
-    return res.status(400).json({ message: "Email and password are required." })
-  }
-
   try {
-    const existingUser = await User.findOne({ email })
-    if (!existingUser) {
-      return res.status(400).json({ message: "User not found." })
+    const { email, password } = req.body
+
+    // Find user
+    const user = await User.findOne({ email })
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        error: "Invalid credentials",
+      })
     }
 
-    const isPasswordCorrect = await bcrypt.compare(password, existingUser.password)
-    if (!isPasswordCorrect) {
-      return res.status(400).json({ message: "Invalid credentials." })
+    // Check password
+    const isMatch = await bcrypt.compare(password, user.password)
+    if (!isMatch) {
+      return res.status(401).json({
+        success: false,
+        error: "Invalid credentials",
+      })
     }
 
-    // Token creation
-    const token = jwt.sign(
-      { id: existingUser._id, email: existingUser.email },
-      process.env.JWT_SECRET || "your_secret_key",
-      { expiresIn: "7d" },
-    )
+    // Generate JWT token
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET || "fallback-secret", { expiresIn: "7d" })
 
-    res.status(200).json({
-      message: "Login successful.",
+    res.json({
+      success: true,
       token,
       user: {
-        id: existingUser._id,
-        fullName: existingUser.fullName,
-        email: existingUser.email,
+        id: user._id,
+        fullName: user.fullName,
+        email: user.email,
       },
     })
   } catch (error) {
-    console.error("Login error:", error)
-    res.status(500).json({ message: "Server Error", error: error.message })
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    })
   }
 }
 
+// Export all functions
 module.exports = {
+  getAllUsers,
+  getUserById,
+  createUser,
+  updateUser,
+  deleteUser,
   registerUser,
   loginUser,
 }

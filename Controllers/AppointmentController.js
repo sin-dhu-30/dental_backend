@@ -1,92 +1,20 @@
-const Appointment = require("../models/AppointmentModel.js")
+const Appointment = require("../models/AppointmentModel")
 
-// Create new appointment
-const createAppointment = async (req, res) => {
-  const { name, email, phone, date, time, service, existingCustomer, reason } = req.body
-
-  // Validation
-  if (!name || !email || !phone || !date || !time || !service || !existingCustomer || !reason) {
-    return res.status(400).json({ message: "All fields are required." })
-  }
-
-  // Validate email format
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-  if (!emailRegex.test(email)) {
-    return res.status(400).json({ message: "Please provide a valid email address." })
-  }
-
-  // Validate phone number (basic validation)
-  const phoneRegex = /^[\d\s\-+()]+$/
-  if (!phoneRegex.test(phone)) {
-    return res.status(400).json({ message: "Please provide a valid phone number." })
-  }
-
-  // Validate date is not in the past
-  const appointmentDate = new Date(date)
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-
-  if (appointmentDate < today) {
-    return res.status(400).json({ message: "Appointment date cannot be in the past." })
-  }
-
-  try {
-    // Check if appointment slot is already taken
-    const existingAppointment = await Appointment.findOne({
-      date: appointmentDate,
-      time: time,
-      status: { $ne: "cancelled" },
-    })
-
-    if (existingAppointment) {
-      return res.status(400).json({
-        message: "This time slot is already booked. Please choose a different time.",
-      })
-    }
-
-    const newAppointment = new Appointment({
-      name,
-      email,
-      phone,
-      date: appointmentDate,
-      time,
-      service,
-      existingCustomer,
-      reason,
-    })
-
-    await newAppointment.save()
-
-    res.status(201).json({
-      message: "Appointment booked successfully!",
-      appointment: {
-        id: newAppointment._id,
-        name: newAppointment.name,
-        email: newAppointment.email,
-        date: newAppointment.date,
-        time: newAppointment.time,
-        service: newAppointment.service,
-        status: newAppointment.status,
-      },
-    })
-  } catch (error) {
-    console.error("Appointment booking error:", error)
-    res.status(500).json({ message: "Server Error", error: error.message })
-  }
-}
-
-// Get all appointments (for admin) - WITH DEBUGGING
+// Get all appointments
 const getAllAppointments = async (req, res) => {
   try {
-    console.log("Getting all appointments...") // Debug log
-    const appointments = await Appointment.find().sort({ date: 1, createdAt: -1 })
-    console.log("Found appointments:", appointments.length) // Debug log
-    console.log("Appointments data:", appointments) // Debug log
+    const appointments = await Appointment.find().sort({ date: 1 })
 
-    res.status(200).json(appointments)
+    res.json({
+      success: true,
+      count: appointments.length,
+      data: appointments,
+    })
   } catch (error) {
-    console.error("Get appointments error:", error)
-    res.status(500).json({ message: "Server Error", error: error.message })
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    })
   }
 }
 
@@ -94,42 +22,68 @@ const getAllAppointments = async (req, res) => {
 const getAppointmentById = async (req, res) => {
   try {
     const appointment = await Appointment.findById(req.params.id)
+
     if (!appointment) {
-      return res.status(404).json({ message: "Appointment not found." })
+      return res.status(404).json({
+        success: false,
+        error: "Appointment not found",
+      })
     }
-    res.status(200).json({
-      message: "Appointment retrieved successfully",
-      appointment,
+
+    res.json({
+      success: true,
+      data: appointment,
     })
   } catch (error) {
-    console.error("Get appointment error:", error)
-    res.status(500).json({ message: "Server Error", error: error.message })
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    })
   }
 }
 
-// Update appointment status
-const updateAppointmentStatus = async (req, res) => {
-  const { status } = req.body
-  const validStatuses = ["pending", "confirmed", "cancelled", "completed"]
-
-  if (!validStatuses.includes(status)) {
-    return res.status(400).json({ message: "Invalid status." })
-  }
-
+// Create appointment
+const createAppointment = async (req, res) => {
   try {
-    const appointment = await Appointment.findByIdAndUpdate(req.params.id, { status }, { new: true })
+    const appointment = await Appointment.create(req.body)
 
-    if (!appointment) {
-      return res.status(404).json({ message: "Appointment not found." })
-    }
-
-    res.status(200).json({
-      message: "Appointment status updated successfully",
-      appointment,
+    res.status(201).json({
+      success: true,
+      data: appointment,
     })
   } catch (error) {
-    console.error("Update appointment error:", error)
-    res.status(500).json({ message: "Server Error", error: error.message })
+    res.status(400).json({
+      success: false,
+      error: error.message,
+    })
+  }
+}
+
+// Update appointment
+const updateAppointment = async (req, res) => {
+  try {
+    const appointment = await Appointment.findByIdAndUpdate(
+      req.params.id,
+      { ...req.body, updatedAt: Date.now() },
+      { new: true, runValidators: true },
+    )
+
+    if (!appointment) {
+      return res.status(404).json({
+        success: false,
+        error: "Appointment not found",
+      })
+    }
+
+    res.json({
+      success: true,
+      data: appointment,
+    })
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      error: error.message,
+    })
   }
 }
 
@@ -139,22 +93,79 @@ const deleteAppointment = async (req, res) => {
     const appointment = await Appointment.findByIdAndDelete(req.params.id)
 
     if (!appointment) {
-      return res.status(404).json({ message: "Appointment not found." })
+      return res.status(404).json({
+        success: false,
+        error: "Appointment not found",
+      })
     }
 
-    res.status(200).json({
+    res.json({
+      success: true,
       message: "Appointment deleted successfully",
     })
   } catch (error) {
-    console.error("Delete appointment error:", error)
-    res.status(500).json({ message: "Server Error", error: error.message })
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    })
   }
 }
 
+// Get appointments by user (if you have this functionality)
+const getAppointmentsByUser = async (req, res) => {
+  try {
+    const appointments = await Appointment.find({ userId: req.params.userId }).sort({ date: 1 })
+
+    res.json({
+      success: true,
+      count: appointments.length,
+      data: appointments,
+    })
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    })
+  }
+}
+
+// Update appointment status
+const updateAppointmentStatus = async (req, res) => {
+  try {
+    const { status } = req.body
+
+    const appointment = await Appointment.findByIdAndUpdate(
+      req.params.id,
+      { status, updatedAt: Date.now() },
+      { new: true, runValidators: true },
+    )
+
+    if (!appointment) {
+      return res.status(404).json({
+        success: false,
+        error: "Appointment not found",
+      })
+    }
+
+    res.json({
+      success: true,
+      data: appointment,
+    })
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      error: error.message,
+    })
+  }
+}
+
+// Export all functions
 module.exports = {
-  createAppointment,
   getAllAppointments,
   getAppointmentById,
-  updateAppointmentStatus,
+  createAppointment,
+  updateAppointment,
   deleteAppointment,
+  getAppointmentsByUser,
+  updateAppointmentStatus,
 }

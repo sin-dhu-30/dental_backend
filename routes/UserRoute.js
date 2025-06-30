@@ -1,7 +1,7 @@
 const express = require("express")
 const router = express.Router()
 // Fix: Change from '../controllers/UserController' to '../Controllers/UserController'
-const userController = require("../controllers/UserController")
+const userController = require("../Controllers/UserController")
 
 // Your existing routes
 router.get("/", userController.getAllUsers)
