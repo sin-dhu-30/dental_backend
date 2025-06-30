@@ -1,79 +1,53 @@
-// Main API handler for Vercel - imports your existing routes
 const express = require("express")
 const mongoose = require("mongoose")
 const cors = require("cors")
-
-// Import your existing routes
-const userRoutes = require("../routes/UserRoute")
-const appointmentRoutes = require("../routes/AppointmentRoute")
 
 const app = express()
 
 // Middleware
 app.use(express.json())
-app.use(
-  cors({
-    origin: process.env.FRONTEND_URL || "*",
-    credentials: true,
-  }),
-)
+app.use(cors())
 
-// MongoDB connection with serverless optimization
+// MongoDB connection
 let isConnected = false
 
-const connectToDatabase = async () => {
-  if (isConnected) {
-    return
-  }
+const connectDB = async () => {
+  if (isConnected) return
 
   try {
-    await mongoose.connect(process.env.MONGODB_URI, {
+    await mongoose.connect(process.env.MONGO_URI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
-      bufferCommands: false,
-      bufferMaxEntries: 0,
     })
     isConnected = true
-    console.log("Connected to MongoDB Atlas")
+    console.log("MongoDB connected")
   } catch (error) {
-    console.error("Database connection error:", error)
-    throw error
+    console.error("MongoDB connection error:", error)
   }
 }
 
-// Middleware to ensure DB connection
-app.use(async (req, res, next) => {
+// Basic route for testing
+app.get("/", (req, res) => {
+  res.json({ message: "Dental Backend API is working!" })
+})
+
+app.get("/api", (req, res) => {
+  res.json({ message: "API endpoint working!" })
+})
+
+app.get("/api/health", async (req, res) => {
   try {
-    await connectToDatabase()
-    next()
+    await connectDB()
+    res.json({ status: "OK", message: "Database connected" })
   } catch (error) {
-    res.status(500).json({ error: "Database connection failed" })
+    res.status(500).json({ status: "Error", message: error.message })
   }
 })
 
-// Health check routes
-app.get("/api", (req, res) => {
-  res.json({
-    message: "Dental Backend API is running on Vercel!",
-    endpoints: {
-      users: "/api/users",
-      appointments: "/api/appointments",
-      health: "/api/health",
-    },
-  })
+// Test route without importing other files first
+app.get("/api/test", (req, res) => {
+  res.json({ message: "Test route working", timestamp: new Date() })
 })
-
-app.get("/api/health", (req, res) => {
-  res.json({
-    status: "OK",
-    message: "Connected to MongoDB Atlas",
-    timestamp: new Date().toISOString(),
-  })
-})
-
-// Use your existing routes
-app.use("/api/users", userRoutes)
-app.use("/api/appointments", appointmentRoutes)
 
 // Export for Vercel
 module.exports = app
