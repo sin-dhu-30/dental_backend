@@ -23,31 +23,57 @@ const connectDB = async () => {
     console.log("MongoDB connected")
   } catch (error) {
     console.error("MongoDB connection error:", error)
+    throw error
   }
 }
 
-// Basic route for testing
-app.get("/", (req, res) => {
-  res.json({ message: "Dental Backend API is working!" })
-})
-
-app.get("/api", (req, res) => {
-  res.json({ message: "API endpoint working!" })
-})
-
-app.get("/api/health", async (req, res) => {
+// Connect to DB middleware
+app.use(async (req, res, next) => {
   try {
     await connectDB()
-    res.json({ status: "OK", message: "Database connected" })
+    next()
   } catch (error) {
-    res.status(500).json({ status: "Error", message: error.message })
+    res.status(500).json({ error: "Database connection failed" })
   }
 })
 
-// Test route without importing other files first
-app.get("/api/test", (req, res) => {
-  res.json({ message: "Test route working", timestamp: new Date() })
+// Basic routes
+app.get("/", (req, res) => {
+  res.json({
+    message: "Dental Backend API is working on Vercel! 🦷",
+    endpoints: {
+      health: "/api/health",
+      users: "/api/users",
+      appointments: "/api/appointments",
+    },
+  })
 })
 
-// Export for Vercel
+app.get("/api", (req, res) => {
+  res.json({
+    message: "Dental Backend API",
+    endpoints: ["/api/health", "/api/users", "/api/appointments"],
+  })
+})
+
+app.get("/api/health", (req, res) => {
+  res.json({
+    status: "OK",
+    message: "Database connected",
+    platform: "Vercel",
+    timestamp: new Date().toISOString(),
+  })
+})
+
+// Import and use your routes
+try {
+  const userRoutes = require("../routes/UserRoute")
+  const appointmentRoutes = require("../routes/AppointmentRoute")
+
+  app.use("/api/users", userRoutes)
+  app.use("/api/appointments", appointmentRoutes)
+} catch (error) {
+  console.error("Error importing routes:", error)
+}
+
 module.exports = app
